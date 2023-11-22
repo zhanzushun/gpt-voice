@@ -1,18 +1,65 @@
 import SwiftUI
+import AVFoundation
+import Speech
 
 struct ContentView: View {
-    @State private var showRecording = false
+    @StateObject private var audioRecorder = AudioRecorder()
+    @State private var humanText = ""
+    @State private var botText = ""
+    @State private var player: AVPlayer?
     @State private var showPlaying = false
 
+    init() {
+        configureAudioSession()
+    }
+    
+    private func configureAudioSession() {
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setCategory(.playback)
+            try audioSession.setActive(true)
+            print("完成语音功能初始化")
+        } catch {
+            print("Failed to set audio session category: \(error)")
+        }
+    }
+    
+    func playSpeech() {
+        guard let url = URL(string: "http://38.102.232.213:5012/speech") else { return }
+        let playerItem = AVPlayerItem(url: url)
+        NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: playerItem,
+            queue: .main
+        ) { _ in
+            self.botText = "这是好事儿啊"
+            self.showPlaying.toggle()
+        }
+        player = AVPlayer(playerItem: playerItem)
+        player?.play()
+    }
+    
     var body: some View {
+        
         ZStack {
             Color.black.edgesIgnoringSafeArea(.all) // 黑色背景
 
             VStack {
+                
+                Text(humanText)
+                    .foregroundColor(.white)
+                    .padding()
+
+                // 显示从服务器接收到的文本
+                Text(botText)
+                    .foregroundColor(.white)
+                    .padding()
+
+
                 Spacer()
 
                 // 根据状态显示录音界面或播放界面
-                if showRecording {
+                if audioRecorder.isRecording {
                     RecordingView()
                 }
                 if showPlaying {
@@ -26,27 +73,32 @@ struct ContentView: View {
 
                     // 麦克风按钮
                     Button(action: {
-                        // 切换录音界面的显示状态
-                        self.showRecording.toggle()
-                        // 确保播放界面不会同时显示
-                        if showPlaying { showPlaying = false }
+                        if audioRecorder.isRecording {
+                            print("停止录音被调用")
+                            audioRecorder.stopRecording()
+                            audioRecorder.sendTextToServer(text: self.humanText)
+                        } else {
+                            print("开始录音")
+                            audioRecorder.startRecording()
+                        }
                     }) {
-                        Image(systemName: "mic.fill")
+                        Image(systemName: audioRecorder.isRecording ? "mic.slash.fill" : "mic.fill")
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 50, height: 50)
                             .foregroundColor(.white)
                             .padding()
                     }
-
+                    
                     Spacer()
 
                     // 音量按钮
                     Button(action: {
-                        // 切换播放界面的显示状态
                         self.showPlaying.toggle()
                         // 确保录音界面不会同时显示
-                        if showRecording { showRecording = false }
+                        if audioRecorder.isRecording {
+                            audioRecorder.stopRecording()
+                        }
                     }) {
                         Image(systemName: "speaker.3.fill")
                             .resizable()
@@ -59,6 +111,25 @@ struct ContentView: View {
                     Spacer()
                 }
             }
+        }
+        .onAppear {
+            audioRecorder.requestAuthorization()
+        }
+        .onChange(of: showPlaying) { newShowPlaying in
+            if newShowPlaying {
+                playSpeech()
+            }
+            else {
+            }
+        }
+        .onChange(of: audioRecorder.transcription) { newhumanText in
+            print("stt:" + newhumanText)
+            self.humanText = newhumanText
+        }
+        .onChange(of: audioRecorder.sseClient.receivedText) { newText in
+            print("从服务端返回: " + newText)
+            self.botText = newText
+            self.showPlaying = true
         }
     }
 }
