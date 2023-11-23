@@ -123,7 +123,7 @@ async def proxy_chat(user, prompt, model) -> StreamingResponse:
 
 
 SEPERATORS = [
-    "\n\n","\n",
+    "\n",
     "。","！","？",
     ". ", "! ", "? ",
     "；", "; ",
@@ -149,16 +149,19 @@ async def proxy_chat_generator(user: str, prompt: str, message_id:str, model: st
                 sentence = ''
                 async for bytes in response.content.iter_any():
                     data = bytes.decode('utf-8')
+                    data = data.replace('\n\n', '\n') # \n\n conflict with SSE
                     exist,left,right = contains_sep(data)
                     if exist:
                         sentence += left
                         yield sentence
+                        sentence = sentence.replace('\n', '  ') # I dont know why swift's SSE cant handle \n
                         sentences.append(sentence)
                         sentence = right
                     else:
                         sentence += data
                 if sentence:
                     yield sentence
+                    sentence = sentence.replace('\n', '  ') # I dont know why swift's SSE cant handle \n
                     sentences.append(sentence)
                 sentences.append(END_SENTENCE)
                 logging.info(f'sentences={sentences}')
