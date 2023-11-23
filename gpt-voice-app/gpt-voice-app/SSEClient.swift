@@ -36,7 +36,7 @@ class SSEManager: ObservableObject {
     private var eventSource: EventSource?
 
     func connectToSSE(messageId: String) {
-        let urlString = "http://38.102.232.213:5012/api_12/sse/\(messageId)"
+        let urlString = "\(AppConfig.apiBaseUrl)/sse/\(messageId)"
         guard let url = URL(string: urlString) else { return }
         let eventHandler = MyEventHandler()
         eventHandler.onDoneReceived = { [weak self] in

@@ -25,15 +25,16 @@ class RemotePlayer: NSObject, ObservableObject {
     }
 
     func thinkAndReply(sseManager: SSEManager, text: String) {
+        var text1 = text
         if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             print("thinkAndReply: 空字符串")
-            return
+            text1 = "hello"
         }
-        let base = "http://38.102.232.213:5012/api_12/think_and_reply"
+        let base = "\(AppConfig.apiBaseUrl)/think_and_reply"
         let user = "user_1"
         let messageId = "message_id_1"
         
-        guard let encodedText = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+        guard let encodedText = text1.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
             let encodedUser = user.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
             let encodedMsgId = messageId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
             let url = URL(string: "\(base)?user=\(encodedUser)&message_id=\(encodedMsgId)&message=\(encodedText)") else { return }
@@ -47,7 +48,7 @@ class RemotePlayer: NSObject, ObservableObject {
             print("speech: 空字符串")
             return
         }
-        let base = "http://38.102.232.213:5012/api_12/speech"
+        let base = "\(AppConfig.apiBaseUrl)/speech"
         guard let encodedText = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
               let url = URL(string: "\(base)?text=\(encodedText)") else { return }
         self._remoteVoice(url: url)

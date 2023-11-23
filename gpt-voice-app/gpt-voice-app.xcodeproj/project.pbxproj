@@ -17,6 +17,7 @@
 		CF2E9B672B0EFCB0004CD183 /* RemotePlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF2E9B662B0EFCB0004CD183 /* RemotePlayer.swift */; };
 		CF2E9B692B0F3366004CD183 /* SseClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF2E9B682B0F3366004CD183 /* SseClient.swift */; };
 		CF2E9B6C2B0F3ACC004CD183 /* LDSwiftEventSource in Frameworks */ = {isa = PBXBuildFile; productRef = CF2E9B6B2B0F3ACC004CD183 /* LDSwiftEventSource */; };
+		CF2E9B6E2B0F5AC8004CD183 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF2E9B6D2B0F5AC8004CD183 /* Config.swift */; };
 		CF3E29BF2B0CA87F00252354 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF3E29BE2B0CA87F00252354 /* AudioRecorder.swift */; };
 /* End PBXBuildFile section */
 
@@ -51,6 +52,7 @@
 		CF2E9B652B0DA88F004CD183 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		CF2E9B662B0EFCB0004CD183 /* RemotePlayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RemotePlayer.swift; sourceTree = "<group>"; };
 		CF2E9B682B0F3366004CD183 /* SseClient.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SseClient.swift; sourceTree = "<group>"; };
+		CF2E9B6D2B0F5AC8004CD183 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		CF3E29BE2B0CA87F00252354 /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -111,6 +113,7 @@
 				CF1519302B0C99A600949474 /* Assets.xcassets */,
 				CF1519322B0C99A600949474 /* Preview Content */,
 				CF3E29BE2B0CA87F00252354 /* AudioRecorder.swift */,
+				CF2E9B6D2B0F5AC8004CD183 /* Config.swift */,
 			);
 			path = "gpt-voice-app";
 			sourceTree = "<group>";
@@ -281,6 +284,7 @@
 				CF2E9B672B0EFCB0004CD183 /* RemotePlayer.swift in Sources */,
 				CF2E9B692B0F3366004CD183 /* SseClient.swift in Sources */,
 				CF15192D2B0C99A300949474 /* gpt_voice_appApp.swift in Sources */,
+				CF2E9B6E2B0F5AC8004CD183 /* Config.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

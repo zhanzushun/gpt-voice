@@ -48,7 +48,6 @@ struct ContentView: View {
                             print("停止录音")
                             audioRecorder.stopRecording()
                             viewState = .playable
-                            humanText = "hello" // TODO
                             remotePlayer.thinkAndReply(sseManager: sseManager, text: humanText)
                         } else {
                             print("开始录音")
@@ -141,7 +140,7 @@ struct ThinkingView: View {
                 Circle()
                     .fill(Color.white)
                     .frame(width: 20, height: 20)
-                    .opacity(currentIndex == index ? 1 : 0.5)
+                    .opacity(currentIndex == index ? 1 : 0.2)
             }
         }
         .onAppear {
