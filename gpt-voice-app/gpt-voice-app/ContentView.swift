@@ -2,81 +2,54 @@ import SwiftUI
 import AVFoundation
 import Speech
 
-struct ContentView: View {
-    @StateObject private var audioRecorder = AudioRecorder()
-    @State private var humanText = ""
-    @State private var botText = ""
-    @State private var player: AVPlayer?
-    @State private var showPlaying = false
+enum ViewState {
+    case microphone
+    case playable
+}
 
-    init() {
-        configureAudioSession()
-    }
-    
-    private func configureAudioSession() {
-        do {
-            let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playback)
-            try audioSession.setActive(true)
-            print("完成语音功能初始化")
-        } catch {
-            print("Failed to set audio session category: \(error)")
-        }
-    }
-    
-    func playSpeech() {
-        guard let url = URL(string: "http://38.102.232.213:5012/speech") else { return }
-        let playerItem = AVPlayerItem(url: url)
-        NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemDidPlayToEndTime,
-            object: playerItem,
-            queue: .main
-        ) { _ in
-            self.botText = "这是好事儿啊"
-            self.showPlaying.toggle()
-        }
-        player = AVPlayer(playerItem: playerItem)
-        player?.play()
-    }
-    
+struct ContentView: View {
+
+    @State private var humanText = ""
+    @State private var viewState: ViewState = .microphone
+
+    @StateObject private var audioRecorder = AudioRecorder()
+    @StateObject private var sseManager = SSEManager()
+    @StateObject private var remotePlayer = RemotePlayer()
+
     var body: some View {
         
         ZStack {
             Color.black.edgesIgnoringSafeArea(.all) // 黑色背景
 
             VStack {
-                
-                Text(humanText)
-                    .foregroundColor(.white)
-                    .padding()
-
-                // 显示从服务器接收到的文本
-                Text(botText)
-                    .foregroundColor(.white)
-                    .padding()
-
-
                 Spacer()
-
-                // 根据状态显示录音界面或播放界面
-                if audioRecorder.isRecording {
-                    RecordingView()
-                }
-                if showPlaying {
-                    PlayingView()
-                }
-
-                Spacer()
-
-                HStack {
+                switch viewState {
+                case .microphone:
+                    if audioRecorder.isRecording {
+                        RecordingView()
+                    }
+                case .playable:
+                    Text(humanText).foregroundColor(.white).padding()
+                    Text(sseManager.botText).foregroundColor(.white).padding()
                     Spacer()
-
-                    // 麦克风按钮
-                    Button(action: {
+                    if remotePlayer.state == .thinking {
+                        ThinkingView()
+                    }
+                    else {
+                        if remotePlayer.state == .playing {
+                            PlayingView()
+                        }
+                    }
+                }
+                Spacer()
+                HStack {
+                    Button(action: { // 录音按钮
                         if audioRecorder.isRecording {
-                            print("停止录音被调用")
+                            print("停止录音")
                             audioRecorder.stopRecording()
-                            audioRecorder.sendTextToServer(text: self.humanText)
+                            viewState = .playable
+                            humanText = "hello" // TODO
+                            remotePlayer.thinkAndReply(sseManager: sseManager, text: humanText)
                         } else {
                             print("开始录音")
                             audioRecorder.startRecording()
@@ -89,47 +62,32 @@ struct ContentView: View {
                             .foregroundColor(.white)
                             .padding()
                     }
-                    
-                    Spacer()
 
-                    // 音量按钮
-                    Button(action: {
-                        self.showPlaying.toggle()
-                        // 确保录音界面不会同时显示
+                    Button(action: { // 播放按钮
+                        if remotePlayer.state == .done {
+                            print("手动播放")
+                            remotePlayer.remoteSpeech(text: sseManager.botText)
+                        }
                         if audioRecorder.isRecording {
                             audioRecorder.stopRecording()
                         }
                     }) {
-                        Image(systemName: "speaker.3.fill")
+                        Image(systemName: (remotePlayer.state == .playing) ?  "speaker.slash.fill" : "speaker.3.fill")
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 50, height: 50)
                             .foregroundColor(.white)
                             .padding()
                     }
-
-                    Spacer()
                 }
             }
         }
         .onAppear {
             audioRecorder.requestAuthorization()
         }
-        .onChange(of: showPlaying) { newShowPlaying in
-            if newShowPlaying {
-                playSpeech()
-            }
-            else {
-            }
-        }
         .onChange(of: audioRecorder.transcription) { newhumanText in
-            print("stt:" + newhumanText)
+            print("人类说:" + newhumanText)
             self.humanText = newhumanText
-        }
-        .onChange(of: audioRecorder.sseClient.receivedText) { newText in
-            print("从服务端返回: " + newText)
-            self.botText = newText
-            self.showPlaying = true
         }
     }
 }
@@ -168,6 +126,27 @@ struct PlayingView: View {
         .onAppear {
             withAnimation(Animation.easeInOut(duration: 1).repeatForever(autoreverses: true)) {
                 isAnimating = true
+            }
+        }
+    }
+}
+
+
+struct ThinkingView: View {
+    @State private var currentIndex: Int = 0
+
+    var body: some View {
+        HStack(spacing: 15) {
+            ForEach(0..<6, id: \.self) { index in
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: 20, height: 20)
+                    .opacity(currentIndex == index ? 1 : 0.5)
+            }
+        }
+        .onAppear {
+            withAnimation(Animation.easeInOut(duration: 0.5).repeatForever(autoreverses: false)) {
+                self.currentIndex = (self.currentIndex + 1) % 6
             }
         }
     }

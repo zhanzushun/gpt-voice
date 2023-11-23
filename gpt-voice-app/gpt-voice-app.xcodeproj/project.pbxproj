@@ -14,8 +14,10 @@
 		CF15193E2B0C99A600949474 /* gpt_voice_appTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF15193D2B0C99A600949474 /* gpt_voice_appTests.swift */; };
 		CF1519482B0C99A600949474 /* gpt_voice_appUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF1519472B0C99A600949474 /* gpt_voice_appUITests.swift */; };
 		CF15194A2B0C99A600949474 /* gpt_voice_appUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF1519492B0C99A600949474 /* gpt_voice_appUITestsLaunchTests.swift */; };
+		CF2E9B672B0EFCB0004CD183 /* RemotePlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF2E9B662B0EFCB0004CD183 /* RemotePlayer.swift */; };
+		CF2E9B692B0F3366004CD183 /* SseClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF2E9B682B0F3366004CD183 /* SseClient.swift */; };
+		CF2E9B6C2B0F3ACC004CD183 /* LDSwiftEventSource in Frameworks */ = {isa = PBXBuildFile; productRef = CF2E9B6B2B0F3ACC004CD183 /* LDSwiftEventSource */; };
 		CF3E29BF2B0CA87F00252354 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF3E29BE2B0CA87F00252354 /* AudioRecorder.swift */; };
-		CF3E29C32B0CB74900252354 /* SSEClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF3E29C22B0CB74900252354 /* SSEClient.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -47,8 +49,9 @@
 		CF1519472B0C99A600949474 /* gpt_voice_appUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = gpt_voice_appUITests.swift; sourceTree = "<group>"; };
 		CF1519492B0C99A600949474 /* gpt_voice_appUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = gpt_voice_appUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		CF2E9B652B0DA88F004CD183 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		CF2E9B662B0EFCB0004CD183 /* RemotePlayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RemotePlayer.swift; sourceTree = "<group>"; };
+		CF2E9B682B0F3366004CD183 /* SseClient.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SseClient.swift; sourceTree = "<group>"; };
 		CF3E29BE2B0CA87F00252354 /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
-		CF3E29C22B0CB74900252354 /* SSEClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSEClient.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -56,6 +59,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CF2E9B6C2B0F3ACC004CD183 /* LDSwiftEventSource in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -99,13 +103,14 @@
 		CF15192B2B0C99A300949474 /* gpt-voice-app */ = {
 			isa = PBXGroup;
 			children = (
+				CF2E9B682B0F3366004CD183 /* SseClient.swift */,
+				CF2E9B662B0EFCB0004CD183 /* RemotePlayer.swift */,
 				CF2E9B652B0DA88F004CD183 /* Info.plist */,
 				CF15192C2B0C99A300949474 /* gpt_voice_appApp.swift */,
 				CF15192E2B0C99A300949474 /* ContentView.swift */,
 				CF1519302B0C99A600949474 /* Assets.xcassets */,
 				CF1519322B0C99A600949474 /* Preview Content */,
 				CF3E29BE2B0CA87F00252354 /* AudioRecorder.swift */,
-				CF3E29C22B0CB74900252354 /* SSEClient.swift */,
 			);
 			path = "gpt-voice-app";
 			sourceTree = "<group>";
@@ -151,6 +156,9 @@
 			dependencies = (
 			);
 			name = "gpt-voice-app";
+			packageProductDependencies = (
+				CF2E9B6B2B0F3ACC004CD183 /* LDSwiftEventSource */,
+			);
 			productName = "gpt-voice-app";
 			productReference = CF1519292B0C99A300949474 /* gpt-voice-app.app */;
 			productType = "com.apple.product-type.application";
@@ -223,6 +231,9 @@
 				Base,
 			);
 			mainGroup = CF1519202B0C99A300949474;
+			packageReferences = (
+				CF2E9B6A2B0F3ACC004CD183 /* XCRemoteSwiftPackageReference "swift-eventsource" */,
+			);
 			productRefGroup = CF15192A2B0C99A300949474 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -265,9 +276,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CF3E29C32B0CB74900252354 /* SSEClient.swift in Sources */,
 				CF3E29BF2B0CA87F00252354 /* AudioRecorder.swift in Sources */,
 				CF15192F2B0C99A300949474 /* ContentView.swift in Sources */,
+				CF2E9B672B0EFCB0004CD183 /* RemotePlayer.swift in Sources */,
+				CF2E9B692B0F3366004CD183 /* SseClient.swift in Sources */,
 				CF15192D2B0C99A300949474 /* gpt_voice_appApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -608,6 +620,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		CF2E9B6A2B0F3ACC004CD183 /* XCRemoteSwiftPackageReference "swift-eventsource" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/launchdarkly/swift-eventsource.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.1.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		CF2E9B6B2B0F3ACC004CD183 /* LDSwiftEventSource */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CF2E9B6A2B0F3ACC004CD183 /* XCRemoteSwiftPackageReference "swift-eventsource" */;
+			productName = LDSwiftEventSource;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = CF1519212B0C99A300949474 /* Project object */;
 }

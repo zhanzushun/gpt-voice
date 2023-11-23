@@ -1,31 +1,55 @@
-//
-//  SSEClient.swift
-//  gpt-voice-app
-//
-//  Created by Zushun Zhan on 11/21/23.
-//
-
 import Foundation
+import LDSwiftEventSource
+
+class MyEventHandler: EventHandler {
+    var onDoneReceived: (() -> Void)?
+    var onTextReceived: ((String) -> Void)?
+
+    func onOpened() {
+        print("SSE打开了")
+    }
+    func onClosed() {
+        print("SSE关闭了")
+    }
+    func onMessage(eventType: String, messageEvent: MessageEvent) {
+        print("Received message: \(messageEvent.data)")
+        if messageEvent.data == "done" {
+            onDoneReceived?()
+            print("SSE完成了")
+        }
+        else {
+            print("SSE收到了:\(messageEvent.data)")
+            onTextReceived?(messageEvent.data)
+        }
+    }
+    func onComment(comment: String) {
+        print("SSE COMMENT是什么: \(comment)")
+    }
+    func onError(error: Error) {
+        print("SSE 出错了: \(error.localizedDescription)")
+    }
+}
 
 
-class SSEClient: ObservableObject {
-    @Published var receivedText: String = ""
+class SSEManager: ObservableObject {
+    @Published var botText: String = ""
+    private var eventSource: EventSource?
 
-    func connectToServer(prompt: String) {
-        self.receivedText = "hello: " + prompt
-
-//        guard let url = URL(string: "http://localhost/sse-endpoint") else { return }
-//
-//        let task = URLSession.shared.dataTask(with: url) { data, response, error in
-//            guard let data = data, error == nil else { return }
-//            // 假设服务器返回的是纯文本数据
-//            if let text = String(data: data, encoding: .utf8) {
-//                DispatchQueue.main.async {
-//                    self.receivedText = text
-//                }
-//            }
-//        }
-//        task.resume()
+    func connectToSSE(messageId: String) {
+        let urlString = "http://38.102.232.213:5012/api_12/sse/\(messageId)"
+        guard let url = URL(string: urlString) else { return }
+        let eventHandler = MyEventHandler()
+        eventHandler.onDoneReceived = { [weak self] in
+            self?.eventSource?.stop()
+        }
+        eventHandler.onTextReceived = { [weak self] text in
+            DispatchQueue.main.async {
+                self?.botText += text
+            }
+        }
+        let config = EventSource.Config(handler: eventHandler, url: url)
+        eventSource = EventSource(config: config)
+        eventSource?.start()
     }
 }
 

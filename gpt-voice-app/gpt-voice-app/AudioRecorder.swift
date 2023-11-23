@@ -6,9 +6,6 @@
 //
 
 import Foundation
-
-
-import SwiftUI
 import AVFoundation
 import Speech
 
@@ -16,8 +13,6 @@ class AudioRecorder: NSObject, ObservableObject {
     @Published var isRecording = false
     @Published var transcription = ""
 
-    let sseClient = SSEClient()
-    
     private let audioEngine = AVAudioEngine()
     private let speechRecognizer = SFSpeechRecognizer()
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
@@ -86,28 +81,6 @@ class AudioRecorder: NSObject, ObservableObject {
             // 处理授权结果...
         }
     }
-
-    func sendTextToServer(text: String) {
-        print("发送prompt到服务端: " + text)
-        
-        self.sseClient.connectToServer(prompt: text)
-        
-//        guard let url = URL(string: "http://localhost/ask") else { return }
-//
-//        var request = URLRequest(url: url)
-//        request.httpMethod = "POST"
-//        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-//
-//        let body: [String: Any] = ["text": text]
-//        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-//
-//        let task = URLSession.shared.dataTask(with: request) { data, response, error in
-//            guard let data = data, error == nil else { return }
-//            self.sseClient.connectToServer()
-//        }
-//        task.resume()
-    }
-
 }
 
 extension AudioRecorder: SFSpeechRecognizerDelegate {
