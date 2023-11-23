@@ -16,6 +16,19 @@ struct ContentView: View {
     @StateObject private var sseManager = SSEManager()
     @StateObject private var remotePlayer = RemotePlayer()
 
+    func getUserId() -> String {
+        if let userIdentifier = UserDefaults.standard.string(forKey: "UserIdentifier") {
+            print("已存在的用户标识符：\(userIdentifier)")
+            return userIdentifier
+        } else {
+            let newIdentifier = UUID().uuidString
+            UserDefaults.standard.set(newIdentifier, forKey: "UserIdentifier")
+            UserDefaults.standard.synchronize()
+            print("新生成的用户标识符：\(newIdentifier)")
+            return newIdentifier
+        }
+    }
+    
     var body: some View {
         
         ZStack {
@@ -48,30 +61,15 @@ struct ContentView: View {
                             print("停止录音")
                             audioRecorder.stopRecording()
                             viewState = .playable
-                            remotePlayer.thinkAndReply(sseManager: sseManager, text: humanText)
+                            remotePlayer.thinkAndReply(sseManager: sseManager, userId: getUserId(), text: humanText)
                         } else {
                             print("开始录音")
                             audioRecorder.startRecording()
+                            audioRecorder.transcription = ""
+                            sseManager.botText = ""
                         }
                     }) {
                         Image(systemName: audioRecorder.isRecording ? "mic.slash.fill" : "mic.fill")
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 50, height: 50)
-                            .foregroundColor(.white)
-                            .padding()
-                    }
-
-                    Button(action: { // 播放按钮
-                        if remotePlayer.state == .done {
-                            print("手动播放")
-                            remotePlayer.remoteSpeech(text: sseManager.botText)
-                        }
-                        if audioRecorder.isRecording {
-                            audioRecorder.stopRecording()
-                        }
-                    }) {
-                        Image(systemName: (remotePlayer.state == .playing) ?  "speaker.slash.fill" : "speaker.3.fill")
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 50, height: 50)
@@ -132,23 +130,30 @@ struct PlayingView: View {
 
 
 struct ThinkingView: View {
-    @State private var currentIndex: Int = 0
+    @State private var isAnimating = false
 
     var body: some View {
-        HStack(spacing: 15) {
-            ForEach(0..<6, id: \.self) { index in
-                Circle()
-                    .fill(Color.white)
-                    .frame(width: 20, height: 20)
-                    .opacity(currentIndex == index ? 1 : 0.2)
-            }
+        ZStack {
+            Circle()
+                .frame(width: 120, height: 120) // 尺寸增加两倍
+                .offset(x: -40, y: -40)        // 偏移量增加两倍
+            Circle()
+                .frame(width: 160, height: 160) // 尺寸增加两倍
+            Circle()
+                .frame(width: 120, height: 120) // 尺寸增加两倍
+                .offset(x: 40, y: -20)         // 偏移量增加两倍
+            Circle()
+                .frame(width: 80, height: 80)  // 尺寸增加两倍
+                .offset(x: 60, y: 40)          // 偏移量增加两倍
+            Circle()
+                .frame(width: 140, height: 140) // 尺寸增加两倍
+                .offset(x: -60, y: 40)         // 偏移量增加两倍
         }
+        .foregroundColor(.white)
+        .scaleEffect(isAnimating ? 1.0 : 0.9)
+        .animation(Animation.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: isAnimating)
         .onAppear {
-            withAnimation(Animation.easeInOut(duration: 0.5).repeatForever(autoreverses: false)) {
-                self.currentIndex = (self.currentIndex + 1) % 6
-            }
+            isAnimating = true
         }
     }
 }
-
-

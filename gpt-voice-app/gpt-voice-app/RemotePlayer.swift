@@ -24,15 +24,15 @@ class RemotePlayer: NSObject, ObservableObject {
         }
     }
 
-    func thinkAndReply(sseManager: SSEManager, text: String) {
+    func thinkAndReply(sseManager: SSEManager, userId:String, text: String) {
         var text1 = text
         if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             print("thinkAndReply: 空字符串")
             text1 = "hello"
         }
         let base = "\(AppConfig.apiBaseUrl)/think_and_reply"
-        let user = "user_1"
-        let messageId = "message_id_1"
+        let user = userId
+        let messageId = UUID().uuidString
         
         guard let encodedText = text1.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
             let encodedUser = user.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),

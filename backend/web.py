@@ -106,7 +106,7 @@ async def proxy_speech_generator(text: str):
                 g_content_type = response.content_type
                 logging.info('content_type=' + g_content_type)
                 async for data in response.content.iter_any():
-                    logging.info(len(data))
+                    #logging.info(len(data))
                     yield data
                 logging.info('proxy speech done')
         except Exception as e:
@@ -123,12 +123,11 @@ async def proxy_chat(user, prompt, model) -> StreamingResponse:
 
 
 SEPERATORS = [
-    "\n\n",
-    "\n",
-    "。|！|？",
-    "\.\s|\!\s|\?\s",
-    "；|;\s",
-    "，|,\s"
+    "\n\n","\n",
+    "。","！","？",
+    ". ", "! ", "? ",
+    "；", "; ",
+    "，", ", "
 ]
 
 def contains_sep(text):

@@ -44,7 +44,7 @@ class SSEManager: ObservableObject {
         }
         eventHandler.onTextReceived = { [weak self] text in
             DispatchQueue.main.async {
-                self?.botText += text
+                self?.botText += " " + text
             }
         }
         let config = EventSource.Config(handler: eventHandler, url: url)

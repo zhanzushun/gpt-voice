@@ -24,6 +24,7 @@ class AudioRecorder: NSObject, ObservableObject {
     }
 
     func startRecording() {
+        
         isRecording = true
         // 确保没有正在进行的识别任务
         if recognitionTask != nil {
