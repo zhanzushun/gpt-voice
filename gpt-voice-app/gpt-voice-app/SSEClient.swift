@@ -36,6 +36,7 @@ class SSEManager: ObservableObject {
     private var eventSource: EventSource?
 
     func connectToSSE(messageId: String) {
+        botText = ""
         let urlString = "\(AppConfig.apiBaseUrl)/sse/\(messageId)"
         guard let url = URL(string: urlString) else { return }
         let eventHandler = MyEventHandler()
@@ -44,6 +45,9 @@ class SSEManager: ObservableObject {
         }
         eventHandler.onTextReceived = { [weak self] text in
             DispatchQueue.main.async {
+                if self?.botText != nil && self?.botText.isEmpty == true {
+                    self?.botText = "Coco老师: "
+                }
                 self?.botText += " " + text
             }
         }

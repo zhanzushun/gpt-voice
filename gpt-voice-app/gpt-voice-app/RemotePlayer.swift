@@ -12,6 +12,7 @@ enum PlayerState {
 class RemotePlayer: NSObject, ObservableObject {
     var player: AVPlayer?
     @Published var state: PlayerState = .done
+    var sseManager: SSEManager?
 
     private func configureAudioSession() {
         do {
@@ -25,6 +26,7 @@ class RemotePlayer: NSObject, ObservableObject {
     }
 
     func thinkAndReply(sseManager: SSEManager, userId:String, text: String) {
+        self.sseManager = sseManager
         var text1 = text
         if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             print("thinkAndReply: 空字符串")
@@ -61,22 +63,62 @@ class RemotePlayer: NSObject, ObservableObject {
         player = AVPlayer(playerItem: playerItem)
 
         playerItem.addObserver(self, forKeyPath: "loadedTimeRanges", options: [.new, .old], context: nil)
+        //playerItem.addObserver(self, forKeyPath: "status", options: [.new, .old], context: nil)
         
         NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: playerItem, queue: .main) { [weak self] _ in
             print("播放完成")
-            self?.state = .done
+            DispatchQueue.main.async {
+                self?.state = .done
+            }
             self?.removeObservers()
         }
         player?.play()
-        self.state = .thinking
+        DispatchQueue.main.async {
+            self.state = .thinking
+        }
         print("开始连接远程播放")
     }
 
     override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
-        if keyPath == "loadedTimeRanges" {
-            print("接收到音频数据")
-            self.state = .playing
+        if let keyPath = keyPath, let playerItem = object as? AVPlayerItem {
+            if keyPath == "loadedTimeRanges" {
+                print("接收到音频数据")
+                DispatchQueue.main.async {
+                    self.state = .playing
+                }
+                return
+            }
+            if keyPath == "status" {
+                switch playerItem.status {
+                case .failed:
+                    let s = ("播放时出错了: \(String(describing: playerItem.error))")
+                    print(s)
+                    DispatchQueue.main.async {
+                        self.sseManager?.botText += "\n" + s
+                    }
+                    self.stop()
+//                case .readyToPlay:
+//                    print("接收到音频数据, 准备播放")
+//                    DispatchQueue.main.async {
+//                        self.state = .playing
+//                    }
+                case .unknown:
+                    print("播放未知状态")
+                @unknown default:
+                    break
+                }
+                return
+            }
+            super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
         }
+    }
+
+    func stop() {
+        player?.pause()
+        DispatchQueue.main.async {
+            self.state = .done
+        }
+        self.removeObservers()
     }
 
     private func removeObservers() {

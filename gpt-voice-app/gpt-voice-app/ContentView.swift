@@ -11,6 +11,8 @@ struct ContentView: View {
 
     @State private var humanText = ""
     @State private var viewState: ViewState = .microphone
+    @State private var showAlert = false
+    @State private var cancelledLength = 0
 
     @StateObject private var audioRecorder = AudioRecorder()
     @StateObject private var sseManager = SSEManager()
@@ -36,14 +38,85 @@ struct ContentView: View {
 
             VStack {
                 Spacer()
+                Text(humanText).foregroundColor(.white).padding()
+                Text(sseManager.botText).foregroundColor(.white).padding()
+                
                 switch viewState {
-                case .microphone:
+                    
+                case .microphone: // 麦克风界面 （静止状态 / 录音状态）
+
                     if audioRecorder.isRecording {
                         RecordingView()
                     }
-                case .playable:
-                    Text(humanText).foregroundColor(.white).padding()
-                    Text(sseManager.botText).foregroundColor(.white).padding()
+                    
+                    Spacer()
+                    
+                    HStack {
+                        
+                        Spacer()
+                        
+                        Button(action: { // 麦克风按钮（静止状态），停止并发送按钮（录音状态）
+                            if audioRecorder.isRecording {
+                                print("停止录音")
+                                audioRecorder.stopRecording()
+                                viewState = .playable
+                                cancelledLength = 0
+                                remotePlayer.thinkAndReply(sseManager: sseManager, userId: getUserId(), text: humanText)
+                            } else {
+                                print("开始录音")
+                                audioRecorder.startRecording()
+                                audioRecorder.transcription = ""
+                                viewState = .microphone
+                            }
+                        }) {
+                            Image(systemName: audioRecorder.isRecording ? "paperplane.fill" : "mic.fill")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 50, height: 50)
+                                .foregroundColor(.white)
+                                .padding()
+                        }
+                        
+                        if audioRecorder.isRecording {
+                            
+                            Spacer()
+                            
+                            Button(action: { // 重录按钮（录音状态）
+                                showAlert = true
+                            }) {
+                                ZStack {
+                                    // 麦克风图标
+                                    Image(systemName: "mic.fill")
+                                        .font(.system(size: 50))
+                                        .foregroundColor(.blue)
+                                    // 循环/重载箭头图标
+                                    Image(systemName: "arrow.counterclockwise")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(.green)
+                                        .offset(x: 20, y: 20) // 根据需要调整位置
+                                }
+                            }
+                            .alert(isPresented: $showAlert) {
+                                Alert(
+                                    title: Text("确认"),
+                                    message: Text("您是否要重新说一次？"),
+                                    primaryButton: .destructive(Text("确认")) {
+                                        // 处理确认操作
+                                        cancelledLength = audioRecorder.transcription.count
+                                        audioRecorder.transcription = ""
+                                        print("重录操作已确认")
+                                    },
+                                    secondaryButton: .cancel(Text("取消")) {
+                                        // 处理取消操作
+                                        print("重录操作已取消")
+                                    }
+                                )
+                            }
+                        }
+                        Spacer()
+                    }
+                    
+                case .playable: // 播放界面 （静止状态/思考状态/播放状态）
                     Spacer()
                     if remotePlayer.state == .thinking {
                         ThinkingView()
@@ -53,29 +126,23 @@ struct ContentView: View {
                             PlayingView()
                         }
                     }
+                    if (remotePlayer.state == .thinking) || (remotePlayer.state == .playing) {
+                        Spacer()
+                        Button(action: { // 停止按钮（思考或播放状态）
+                            print("停止播放")
+                            remotePlayer.stop()
+                        }) {
+                            Image(systemName: "square.fill")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 30, height: 30)
+                                .foregroundColor(.white)
+                                .padding()
+                        }
+                    }
                 }
                 Spacer()
                 HStack {
-                    Button(action: { // 录音按钮
-                        if audioRecorder.isRecording {
-                            print("停止录音")
-                            audioRecorder.stopRecording()
-                            viewState = .playable
-                            remotePlayer.thinkAndReply(sseManager: sseManager, userId: getUserId(), text: humanText)
-                        } else {
-                            print("开始录音")
-                            audioRecorder.startRecording()
-                            audioRecorder.transcription = ""
-                            sseManager.botText = ""
-                        }
-                    }) {
-                        Image(systemName: audioRecorder.isRecording ? "mic.slash.fill" : "mic.fill")
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 50, height: 50)
-                            .foregroundColor(.white)
-                            .padding()
-                    }
                 }
             }
         }
@@ -83,8 +150,18 @@ struct ContentView: View {
             audioRecorder.requestAuthorization()
         }
         .onChange(of: audioRecorder.transcription) { newhumanText in
-            print("人类说:" + newhumanText)
-            self.humanText = newhumanText
+            if newhumanText.count - self.cancelledLength > 0 {
+                print("人类说:" + newhumanText.suffix(newhumanText.count - self.cancelledLength))
+                self.humanText = "You: " + String(newhumanText.suffix(newhumanText.count - cancelledLength))
+            }
+            else {
+                self.humanText = ""
+            }
+        }
+        .onChange(of: remotePlayer.state) { newState in
+            if newState == PlayerState.done {
+                self.viewState = .microphone
+            }
         }
     }
 }
