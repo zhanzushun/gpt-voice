@@ -2,7 +2,7 @@ import asyncio
 import threading
 import logging
 from dataclasses import dataclass
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends
 from typing import Dict
 import uvicorn
 import sys
@@ -22,13 +22,13 @@ import json
 from aliyunsdkcore.client import AcsClient
 from aliyunsdkcore.request import CommonRequest
 
-import config
+import config as gloabl_config
 
 class AliyunTokenManager:
     def __init__(self, region="cn-shanghai"):
         self.client = AcsClient(
-            config.ALIYUN_APP_ID,
-            config.ALIYUN_APP_KEY,
+            gloabl_config.ALIYUN_APP_ID,
+            gloabl_config.ALIYUN_APP_KEY,
             region
         )
         self.token = None
@@ -74,7 +74,7 @@ SENTENCE_COMPLETE_SEC = 1 # SECONDS
 
 @dataclass
 class Config:
-    APPKEY: str = 'KSnmqH8ilz1N6z9x'
+    APPKEY: str = gloabl_config.ALIYUN_STT_APP_KEY
     URL: str = "wss://nls-gateway-cn-shanghai.aliyuncs.com/ws/v1"
     CHUNK_SIZE: int = 1280*2
 
@@ -283,6 +283,7 @@ class SpeechRecognizer:
 app = FastAPI()
 
 active_connections: Dict[str, WebSocket] = {}
+user_bytes = {}
 audio_buffer = bytearray()
 
 current_sent_cnt = 0
@@ -296,13 +297,37 @@ def log_sending_reset():
     global current_sent_cnt
     current_sent_cnt =0
 
+import jwt
+ALGORITHM = "HS256"
+
 @app.websocket("/api_16/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str):
     await websocket.accept()
-    logging.info(f'/ws/{user_id}')
-    active_connections[user_id] = websocket
+    try:
+        token = await websocket.receive_text()
+        logging.info(f'ws token={token}')
+        payload = jwt.decode(token, gloabl_config.JWT_SECRET_KEY, algorithms=[ALGORITHM])
+        phone = payload.get("sub")
+        if phone is None:
+            await websocket.send_text("TOKEN_INVALID")
+            await websocket.close()
+            return
+    except jwt.ExpiredSignatureError:
+        await websocket.send_text("TOKEN_INVALID")
+        await websocket.close()
+        return
+    except jwt.InvalidTokenError:
+        await websocket.send_text("TOKEN_INVALID")
+        await websocket.close()
+        return
+
+    logging.info(f'/ws/, user_id={user_id}, phone={phone}')
+    active_connections[phone] = websocket
+    active_users = list(active_connections.keys())
+    logging.info(f'active_users.cnt={len(active_users)}, active_users={active_users[:10]}')
+
     config = Config()
-    recognizer = SpeechRecognizer(config, f'user_{user_id}', websocket)
+    recognizer = SpeechRecognizer(config, f'user_{phone}', websocket)
     global audio_buffer
     try:
         async def audio_receiver():
@@ -311,6 +336,8 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
             while True:
                 try:
                     audio_content = await asyncio.wait_for(websocket.receive_bytes(), timeout=0.1)
+                    user_bytes[phone] = user_bytes.get(phone, 0) + len(audio_content)
+                    
                     last_received_time = time.time()
                     audio_buffer.extend(audio_content)
                     while len(audio_buffer) >= config.CHUNK_SIZE:
@@ -323,12 +350,12 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                         # log_sending_reset()
                     pass
                 except WebSocketDisconnect:
-                    logging.info(f"WebSocket disconnected for user {user_id}")
+                    logging.info(f"WebSocket disconnected for user {phone}")
                     await recognizer.stop_transcriber()
                     # log_sending_reset()
                     break
                 except Exception as e:
-                    logging.error(f"Error receiving audio for user {user_id}: {e}")
+                    logging.error(f"Error receiving audio for user {phone}: {e}")
                     break
 
         # 持续接收直到用户关闭 websocket
@@ -336,22 +363,34 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
         await asyncio.gather(receiver_task)
     
     except WebSocketDisconnect:
-        logging.info(f"WebSocket disconnected for user {user_id}")
+        logging.info(f"WebSocket disconnected for user {phone}")
     except Exception as e:
         logging.info(f"Error: {e}")
     finally:
+        users_to_file()
         audio_buffer = bytearray()
-        if user_id in active_connections:
-            del active_connections[user_id]
-        logging.info(f"Cleaned up connection for user {user_id}")
+        if phone in active_connections:
+            del active_connections[phone]
+        logging.info(f"Cleaned up connection for user {phone}")
 
-@app.get("/users")
-async def get_active_users():
-    return {"active_users": list(active_connections.keys())}
+def users_to_file():
+    with open("users_bytes.json", "w") as f:
+        json.dump(user_bytes, f, indent=2, ensure_ascii=False)
+
+def users_from_file():
+    global user_bytes
+    try:
+        with open("users_bytes.json", "r") as f:
+            user_bytes = json.load(f)
+    except FileNotFoundError:
+        pass
+
+users_from_file()
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
+# 单独部署到阿里云机器
 # conda activate aliyun-stt-ws
 
 # 下载 https://github.com/aliyun/alibabacloud-nls-python-sdk
@@ -359,7 +398,7 @@ if __name__ == "__main__":
 # pip install -r requirements.txt
 # pip install .
 # pip install aliyun-python-sdk-core==2.15.1
-# pip install fastapi uvicorn aiohttp requests python-multipart
+# pip install fastapi uvicorn aiohttp requests python-multipart pyjwt==2.8.0
 
 # nginx:
 # proxy_http_version 1.1;                 #websocket

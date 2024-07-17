@@ -1,19 +1,28 @@
-from fastapi import FastAPI, Query, UploadFile, File, Form
+from typing import List
+from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Form, Depends
 from fastapi.responses import StreamingResponse
 import logging
 import aiohttp
 import time
 from datetime import datetime
 import os
+from queue import Queue, Empty
+import json
+
+from pydantic import BaseModel
 
 import config
+from login import router as login_router
+from login import verify_token
 
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(funcName)s - %(message)s",
+    format="%(asctime)s - %(levelname)s - %(funcName)s - %(message)s",
     level=logging.INFO
 )
 
 app = FastAPI()
+app.include_router(login_router)
+
 STATIC_FOLDER_PATH = 'static'
 os.makedirs(STATIC_FOLDER_PATH, exist_ok=True)
 
@@ -30,59 +39,80 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-message_dict = {}
-MSG_INIT = -1
-MSG_DONE = -2
-END_SENTENCE = '<|done|>'
+message_dict = {} # sse消息队列
+END_SENTENCE = ''
+
+def msg_from_file(phone):
+    now_obj = datetime.now()
+    date = now_obj.strftime("%Y%m%d")
+    ym = now_obj.strftime("%Y%m")
+    t = now_obj.strftime('%Y-%m-%d %H:%M:%S')
+
+    os.makedirs(os.path.join(STATIC_FOLDER_PATH, phone, ym), exist_ok=True)
+    file_path = os.path.join(STATIC_FOLDER_PATH, phone, ym, date + '.json')
+    msgs = []
+    if os.path.exists(file_path):
+        with open(file_path, "r", encoding='utf-8') as f:
+            msgs = json.load(f)
+    return msgs, file_path, t
+
+def msg_to_file(phone, sentbyme, sentences):
+    msgs, file_path, t = msg_from_file(phone)
+    msgs.append({'time':t, 'sentbyme':sentbyme, 'content': ' '.join(sentences)})
+    with open(file_path, "w", encoding='utf-8') as f:
+        json.dump(msgs, f, indent=2, ensure_ascii=False)
 
 
 @app.get("/api_12/sse/{msg_id}")
-async def get_msg_status(msg_id: str):
+async def get_msg_status(msg_id: str, phone: str = Depends(verify_token)):
     def event_stream():
-        prev_idx = MSG_INIT
-        cnt = 0
-        while prev_idx != MSG_DONE:
-            sentence_list = message_dict.get(msg_id, [])
-            # logging.info(f'msg_id={msg_id}, status={prev_idx}, sentences={len(sentence_list)}, cnt={cnt}')
-            if (len(sentence_list) > prev_idx + 1):
-                new_idx = len(sentence_list) - 1
-                if sentence_list[-1] == END_SENTENCE:
-                    new_idx = new_idx - 1
-
-                logging.info(f'msg_id={msg_id}, new idx={new_idx}')
-                text = ' '.join(sentence_list[prev_idx+1:new_idx+1])
-                text = f"data: {text}\n\n"
+        sentences = []
+        if msg_id not in message_dict:
+            message_dict[msg_id] = Queue()
+        while True:
+            try:
+                sentence = message_dict[msg_id].get(timeout=60)  # 等待60秒来获取新消息
+                if sentence == END_SENTENCE:
+                    break
+                logging.info(f'msg_id={msg_id}, new message={sentence}')
+                sentences.append(sentence)
+                text = f"data: {sentence}\n\n"
                 logging.info(f'yield {text}')
                 yield text
-                prev_idx = new_idx
-
-                if sentence_list[-1] == END_SENTENCE:
-                    prev_idx = MSG_DONE
-                cnt = 0
-            else:
-                if cnt > 60:
-                    yield_text = f"data: ...Oops! 超时了\n\n"
-                    logging.info(f'yield {yield_text}')
-                    yield yield_text
-                    break
-            time.sleep(1)
-            cnt += 1
-
+            except Empty:
+                yield_text = f"data: ...Oops! 超时了\n\n"
+                logging.info(f'yield {yield_text}')
+                yield yield_text
+                break
         yield_text = f"data: done\n\n"
         logging.info(f'yield {yield_text}')
+        del message_dict[msg_id]
+        msg_to_file(phone, False, sentences)
         yield yield_text
-        
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
+import jwt
+ALGORITHM = "HS256"
 
 @app.get("/api_12/think_and_reply")
-async def post_chat(user:str=Query(...), message:str=Query(...), message_id:str=Query(...)):
+async def post_chat(token:str=Query(...), message:str=Query(...), message_id:str=Query(...)):
     # 前端在发送这个请求之前，会先生成 message_id 并启动 sse 等待接收文本信息
     # 在 proxy_chat_generator 中把接收到的 llm 文本按句子标点断句：
     # 1. 句子文本通过sse返回前端
     # 2. 同时句子发送到语音stt服务转语音， proxy_speech_generator，转好的语音字节流通过本接口回传给前端
-    logging.info(f'user={user}, message_id={message_id}')
-    return StreamingResponse(piped_generator(user, message, message_id), media_type='audio/mpeg')
+    try:
+        logging.info(f'ws token={token}')
+        payload = jwt.decode(token, config.JWT_SECRET_KEY, algorithms=[ALGORITHM])
+        phone = payload.get("sub")
+        if phone is None:
+            return {}
+    except jwt.ExpiredSignatureError:
+        return {}
+    except jwt.InvalidTokenError:
+        return {}
+    logging.info(f'user={phone}, message_id={message_id}')
+    msg_to_file(phone, True, [message,])
+    return StreamingResponse(piped_generator(phone, message, message_id), media_type='audio/mpeg')
 
 
 async def piped_generator(user, message, message_id):
@@ -103,7 +133,7 @@ async def proxy_speech_generator(text: str):
             }
             async with session.post('https://api.openai.com/v1/audio/speech', 
                                     headers = headers,
-                                    json={"input":text, "model": "tts-1", "voice": "alloy"}) as response:
+                                    json={"input":text, "model": "tts-1", "voice": "nova"}) as response:
                 logging.info(f'proxy speech start: {text}')
                 async for data in response.content.iter_any():
                     yield data
@@ -138,8 +168,8 @@ def contains_sep(text):
 async def proxy_chat_generator(user: str, prompt: str, message_id:str, model: str):
     async with aiohttp.ClientSession() as session:
         try:
-            sentences = []
-            message_dict[message_id] = sentences
+            if message_id not in message_dict:
+                message_dict[message_id] = Queue()
             async with session.post(CHAT_URL, json={"prompt":prompt, "user": user, "user_group": "zzs", "model": model}) as response:
                 sentence = ''
                 async for bytes in response.content.iter_any():
@@ -148,23 +178,40 @@ async def proxy_chat_generator(user: str, prompt: str, message_id:str, model: st
                     exist,left,right = contains_sep(data)
                     if exist:
                         sentence += left
-                        yield sentence
                         sentence = sentence.replace('\n', '  ') # I dont know why swift's SSE cant handle \n
-                        sentences.append(sentence)
+                        message_dict[message_id].put(sentence)
+                        yield sentence
                         sentence = right
                     else:
                         sentence += data
                 if sentence:
-                    yield sentence
                     sentence = sentence.replace('\n', '  ') # I dont know why swift's SSE cant handle \n
-                    sentences.append(sentence)
-                sentences.append(END_SENTENCE)
-                logging.info(f'sentences={sentences}')
+                    message_dict[message_id].put(sentence)
+                    yield sentence
+                message_dict[message_id].put(END_SENTENCE)
+                logging.info(f'sentences done')
 
         except Exception as e:
             yield f'Exception: {e}'
 
+class HistoryResponse(BaseModel):
+    content: str
+    sentbyme: bool
+    time: str
+
+
+@app.get("/api_12/history", response_model=List[HistoryResponse])
+def get_chat_history(phone: str = Depends(verify_token)):
+    msgs, _, _ = msg_from_file(phone)
+    return [HistoryResponse(**item) for item in msgs]
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
 # conda activate env-gpt-voice
 
-# pip install fastapi uvicorn aiohttp requests python-multipart
+# pip install fastapi uvicorn aiohttp requests python-multipart pyjwt aliyunsdkcore
 # nohup uvicorn web:app --reload --host 0.0.0.0 --port 5012 >> nohup.out &
