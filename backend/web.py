@@ -8,6 +8,8 @@ from datetime import datetime
 import os
 from queue import Queue, Empty
 import json
+import shutil
+import requests
 
 from pydantic import BaseModel
 
@@ -58,7 +60,7 @@ def msg_from_file(phone):
 
 def msg_to_file(phone, sentbyme, sentences):
     msgs, file_path, t = msg_from_file(phone)
-    msgs.append({'time':t, 'sentbyme':sentbyme, 'content': ' '.join(sentences)})
+    msgs.append({'time':t, 'sentbyme':sentbyme, 'content': ' '.join(sentences)}) # 这里也加个空格
     with open(file_path, "w", encoding='utf-8') as f:
         json.dump(msgs, f, indent=2, ensure_ascii=False)
 
@@ -76,13 +78,13 @@ async def get_msg_status(msg_id: str, phone: str = Depends(verify_token)):
                     break
                 logging.info(f'msg_id={msg_id}, new message={sentence}')
                 sentences.append(sentence)
-                text = f"data: {sentence}\n\n"
+                text = f"data: {sentence} \n\n" # 这里加个空格
                 logging.info(f'yield {text}')
                 yield text
             except Empty:
-                yield_text = f"data: ...Oops! 超时了\n\n"
-                logging.info(f'yield {yield_text}')
-                yield yield_text
+                # yield_text = f"data: ...Oops! 超时了\n\n"
+                logging.info(f'oops 超时了')
+                # yield yield_text
                 break
         yield_text = f"data: done\n\n"
         logging.info(f'yield {yield_text}')
@@ -133,7 +135,7 @@ async def proxy_speech_generator(text: str):
             }
             async with session.post('https://api.openai.com/v1/audio/speech', 
                                     headers = headers,
-                                    json={"input":text, "model": "tts-1", "voice": "nova"}) as response:
+                                    json={"input":text, "model": "tts-1", "voice": "shimmer"}) as response:
                 logging.info(f'proxy speech start: {text}')
                 async for data in response.content.iter_any():
                     yield data
@@ -150,18 +152,25 @@ CHAT_URL = f'{config.PROXY_CHAT_HOST_PORT}/api_13/chat'
 SEPERATORS = [
     "\n",
     "。","！","？",
-    ". ", "! ", "? ",
-    "；", "; ",
-    "，", ", "
+    ".", "!", "?",
+    "；", ";",
+    "，", ","
 ]
 
 def contains_sep(text):
+    if len(text.strip()) == 1:
+        return False, None, None
+    left_size = len(text)
+    left = ''
     for SEP in SEPERATORS:
         if SEP in text:
             arr = text.split(SEP, 1)
-            left = arr[0] + SEP
-            right = arr[1]
-            return True, left, right
+            if left_size > len(arr[0]):
+                left = arr[0] + SEP
+                right = arr[1]
+                left_size = len(arr[0])
+    if left:
+        return True, left, right
     return False, None, None
 
 
@@ -171,23 +180,26 @@ async def proxy_chat_generator(user: str, prompt: str, message_id:str, model: st
             if message_id not in message_dict:
                 message_dict[message_id] = Queue()
             async with session.post(CHAT_URL, json={"prompt":prompt, "user": user, "user_group": "zzs", "model": model}) as response:
-                sentence = ''
+                remains = ''
                 async for bytes in response.content.iter_any():
                     data = bytes.decode('utf-8')
                     data = data.replace('\n\n', '\n') # \n\n conflict with SSE
+                    data = remains + data
+                    # logging.info(f'data before sentence={data}')
                     exist,left,right = contains_sep(data)
-                    if exist:
-                        sentence += left
-                        sentence = sentence.replace('\n', '  ') # I dont know why swift's SSE cant handle \n
-                        message_dict[message_id].put(sentence)
-                        yield sentence
-                        sentence = right
-                    else:
-                        sentence += data
-                if sentence:
-                    sentence = sentence.replace('\n', '  ') # I dont know why swift's SSE cant handle \n
-                    message_dict[message_id].put(sentence)
-                    yield sentence
+                    while exist:
+                        sentence = left
+                        if sentence.strip():
+                            sentence = sentence.replace('\n', '  ') # I dont know why swift's SSE cant handle \n
+                            message_dict[message_id].put(sentence)
+                            yield sentence
+                        data = right
+                        exist,left,right = contains_sep(data)
+                    remains = data
+                if remains.strip():
+                    remains = remains.replace('\n', '  ') # I dont know why swift's SSE cant handle \n
+                    message_dict[message_id].put(remains)
+                    yield remains
                 message_dict[message_id].put(END_SENTENCE)
                 logging.info(f'sentences done')
 
@@ -204,6 +216,35 @@ class HistoryResponse(BaseModel):
 def get_chat_history(phone: str = Depends(verify_token)):
     msgs, _, _ = msg_from_file(phone)
     return [HistoryResponse(**item) for item in msgs]
+
+
+def _audio_to_script(local_file_path):
+    headers = {
+        'Authorization': f'Bearer sk-{config.API_KEY}',
+    }
+    data = {
+        'model': 'whisper-1',
+        'temperature': '0.01'
+    }
+    files = {
+        'file': open(local_file_path, 'rb'),
+    }
+    response = requests.post('https://api.openai.com/v1/audio/transcriptions', headers=headers, data=data, files=files)
+    dict1 = response.json()
+    logging.info(f'response={dict1}')
+    if response.status_code == 200:
+        return dict1['text']
+    else:
+        return dict1['error']['message']
+
+
+@app.post(f"/api_12/file_stt")
+async def post_file_stt(file: UploadFile = File(...)):
+    logging.info(f"/file_stt")
+    temp_file_path = os.path.join(STATIC_FOLDER_PATH, file.filename)
+    with open(temp_file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    return {"text": _audio_to_script(temp_file_path)}
 
 
 if __name__ == "__main__":

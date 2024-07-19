@@ -17,10 +17,12 @@ audio_buffer = bytearray()
 sample_rate = 16000
 
 
-@app.websocket("/api_12/ws/{user_id}")
+@app.websocket("/api_16/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str):
     global audio_buffer, is_recording
     await websocket.accept()
+    token = await websocket.receive_text()
+    logging.info(f'ws token={token}')
     async def audio_receiver():
         while True:
             try:
@@ -58,3 +60,5 @@ def try_save_audio():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+# nohup uvicorn web_stream_to_file:app --reload --host 0.0.0.0 --port 5016 >> nohup.out &

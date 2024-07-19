@@ -8,7 +8,7 @@ from google.oauth2 import service_account
 credentials = service_account.Credentials.from_service_account_file('zhanzushun-8dd339d73749.json')
 
 # 音频文件路径
-audio_file = 'wav/recorded_audio.wav'
+audio_file = 'recorded_audio.wav'
 
 class MyCallback:
     def on_started(self):
@@ -73,17 +73,10 @@ def generate_chunks(audio_data, chunk_size=3200):
     print(f'audio_data={len(audio_data)}')
     idx = 0
     for i in range(0, len(audio_data), chunk_size):
-        # if random.random() < 0.3:
-        #     print("跳过一个音频片段")
-        #     continue
-
         yield audio_data[i:i + chunk_size]
-
-        pause_time = random.uniform(0.1, 0.5)
-
+        pause_time = random.uniform(1, 3)
         print(f'idx={idx}')
         idx += 1
-        
         print(f"停顿 {pause_time:.2f} 秒")
         time.sleep(pause_time)
 
