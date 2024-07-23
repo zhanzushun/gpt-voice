@@ -425,7 +425,7 @@ async def async_convert_wav_to_mp3(wav_file, mp3_file):
     await asyncio.to_thread(
         ffmpeg.input(wav_file)
         .output(mp3_file, acodec='libmp3lame')
-        .global_args('-loglevel', 'error')
+        .global_args('-loglevel', 'error', '-y')
         .run
     )
 
@@ -510,3 +510,10 @@ users_from_file()
 # proxy_set_header Connection "upgrade";  #websocket 
 
 # nohup uvicorn aliyun-stt-ws:app --reload --host 0.0.0.0 --port 5016 >> nohup.out &
+
+async def _main():
+    await re_recognize('18616699733', '20240720_090914_108')
+
+if __name__ == '__main__':
+    import asyncio
+    asyncio.run(_main())

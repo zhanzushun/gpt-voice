@@ -224,7 +224,8 @@ def _audio_to_script(local_file_path):
     }
     data = {
         'model': 'whisper-1',
-        'temperature': '0.01'
+        'temperature': '0.7',
+        'prompt': '我说简体中文，I also speek English.',
     }
     files = {
         'file': open(local_file_path, 'rb'),
