@@ -1,5 +1,5 @@
 from typing import List
-from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Form, Depends
+from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Form, Depends, BackgroundTasks
 from fastapi.responses import StreamingResponse
 import logging
 import aiohttp
@@ -10,6 +10,8 @@ from queue import Queue, Empty
 import json
 import shutil
 import requests
+import aiofiles
+import asyncio
 
 from pydantic import BaseModel
 
@@ -27,6 +29,7 @@ app.include_router(login_router)
 
 STATIC_FOLDER_PATH = 'static'
 os.makedirs(STATIC_FOLDER_PATH, exist_ok=True)
+os.makedirs(os.path.join(STATIC_FOLDER_PATH, 'temp'), exist_ok=True)
 
 from fastapi.staticfiles import StaticFiles
 app.mount("/api_12/static", StaticFiles(directory=STATIC_FOLDER_PATH), name="static")
@@ -97,13 +100,13 @@ import jwt
 ALGORITHM = "HS256"
 
 @app.get("/api_12/think_and_reply")
-async def post_chat(token:str=Query(...), message:str=Query(...), message_id:str=Query(...)):
+async def get_think_and_reply(token:str=Query(...), message:str=Query(...), message_id:str=Query(...)):
     # 前端在发送这个请求之前，会先生成 message_id 并启动 sse 等待接收文本信息
     # 在 proxy_chat_generator 中把接收到的 llm 文本按句子标点断句：
     # 1. 句子文本通过sse返回前端
     # 2. 同时句子发送到语音stt服务转语音， proxy_speech_generator，转好的语音字节流通过本接口回传给前端
     try:
-        logging.info(f'ws token={token}')
+        logging.info(f'think_and_reply, ws token={token}')
         payload = jwt.decode(token, config.JWT_SECRET_KEY, algorithms=[ALGORITHM])
         phone = payload.get("sub")
         if phone is None:
@@ -122,11 +125,11 @@ async def piped_generator(user, message, message_id):
         logging.info(f'sentence={sentence}')
         if sentence == END_SENTENCE:
             break
-        async for voice_data in proxy_speech_generator(sentence):
+        async for voice_data in proxy_speech_generator(user, message_id, sentence):
             yield voice_data
 
 
-async def proxy_speech_generator(text: str):
+async def proxy_speech_generator(user, msgid, sentence: str):
     async with aiohttp.ClientSession() as session:
         try:
             headers={
@@ -135,13 +138,13 @@ async def proxy_speech_generator(text: str):
             }
             async with session.post('https://api.openai.com/v1/audio/speech', 
                                     headers = headers,
-                                    json={"input":text, "model": "tts-1", "voice": "shimmer"}) as response:
-                logging.info(f'proxy speech start: {text}')
+                                    json={"input":sentence, "model": "tts-1", "voice": "shimmer"}) as response:
+                logging.info(f'proxy speech start: {sentence}')
                 async for data in response.content.iter_any():
                     yield data
-                logging.info(f'proxy speech done: {text}')
+                logging.info(f'proxy speech done: {sentence}')
         except Exception as e:
-            yield f'Exception: {e}'
+            logging.exception('speech_generator: something wrong')
 
 
 # -----------------------------------
@@ -202,9 +205,9 @@ async def proxy_chat_generator(user: str, prompt: str, message_id:str, model: st
                     yield remains
                 message_dict[message_id].put(END_SENTENCE)
                 logging.info(f'sentences done')
-
-        except Exception as e:
-            yield f'Exception: {e}'
+        except:
+            logging.exception('chat_generator: something wrong')
+            #yield f'Exception: {e}'
 
 class HistoryResponse(BaseModel):
     content: str
@@ -255,5 +258,5 @@ if __name__ == "__main__":
 
 # conda activate env-gpt-voice
 
-# pip install fastapi uvicorn aiohttp requests python-multipart pyjwt aliyunsdkcore
+# pip install fastapi uvicorn aiohttp requests python-multipart pyjwt aliyunsdkcore aiofiles
 # nohup uvicorn web:app --reload --host 0.0.0.0 --port 5012 >> nohup.out &
